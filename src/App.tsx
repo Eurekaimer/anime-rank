@@ -75,7 +75,7 @@ export default function App() {
 
   const years = useMemo(() => {
     const current = new Date().getFullYear()
-    return Array.from({ length: 9 }, (_, index) => current + 1 - index)
+    return Array.from({ length: current + 2 - 2000 }, (_, index) => current + 1 - index)
   }, [])
 
   const load = async (force = false) => {
@@ -87,9 +87,12 @@ export default function App() {
       if (saved) {
         const savedTiers = JSON.parse(saved) as Tier[]
         const availableIds = new Set(anime.map((item) => item.id))
+        const freshAnime = new Map(anime.map((item) => [item.id, item]))
         const cleanedTiers = savedTiers.map((tier) => ({
           ...tier,
-          items: tier.items.filter((item) => availableIds.has(item.id)),
+          items: tier.items
+            .filter((item) => availableIds.has(item.id))
+            .map((item) => freshAnime.get(item.id)!),
         }))
         const known = new Set(cleanedTiers.flatMap((tier) => tier.items.map((item) => item.id)))
         const additions = anime.filter((item) => !known.has(item.id))
@@ -227,14 +230,30 @@ export default function App() {
   const rankedCount = tiers.filter((tier) => tier.id !== 'pool').reduce((sum, tier) => sum + tier.items.length, 0)
   const pool = tiers.find((tier) => tier.id === 'pool')?.items || []
   const pageSize = poolColumns * 2
+  const ratedPool = pool.filter((anime) => anime.score > 0)
+  const seasonMeanScore = ratedPool.length
+    ? ratedPool.reduce((sum, anime) => sum + anime.score, 0) / ratedPool.length
+    : 6.5
+  const maxLogHeat = Math.max(1, ...pool.map((anime) => Math.log1p(anime.collectionTotal)))
+  const adjustedRating = (anime: Anime) => {
+    if (anime.score <= 0) return -1
+    const minimumVotes = 8
+    return (anime.ratingCount * anime.score + minimumVotes * seasonMeanScore) /
+      (anime.ratingCount + minimumVotes)
+  }
+  const smartScore = (anime: Anime) => {
+    if (anime.score <= 0) return Math.log1p(anime.collectionTotal) / maxLogHeat
+    const ratingPart = adjustedRating(anime)
+    const heatPart = (Math.log1p(anime.collectionTotal) / maxLogHeat) * 10
+    return ratingPart * .75 + heatPart * .25
+  }
   const filteredPool = pool
     .filter((anime) => `${anime.nameCn} ${anime.name}`.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => {
-      if (sortMode === 'score') return b.score - a.score || b.collectionTotal - a.collectionTotal
+      if (sortMode === 'score') return adjustedRating(b) - adjustedRating(a) || b.ratingCount - a.ratingCount
       if (sortMode === 'date') return (a.date || '').localeCompare(b.date || '')
       if (sortMode === 'name') return a.nameCn.localeCompare(b.nameCn, 'zh-CN')
       if (sortMode === 'heat') return b.collectionTotal - a.collectionTotal || b.score - a.score
-      const smartScore = (anime: Anime) => Math.log10(anime.collectionTotal + 1) * 2 + anime.score
       return smartScore(b) - smartScore(a) || b.collectionTotal - a.collectionTotal
     })
   const pageCount = Math.max(1, Math.ceil(filteredPool.length / pageSize))

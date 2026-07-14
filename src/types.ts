@@ -6,6 +6,7 @@ export type Anime = {
   score: number
   rank: number
   collectionTotal: number
+  ratingCount: number
   date?: string
   platform: 'TV' | 'MOVIE' | 'WEB'
 }
@@ -29,6 +30,18 @@ export type BangumiSubject = {
   score?: number
   rank?: number
   collection_total?: number
+  rating?: {
+    score: number
+    rank: number
+    total: number
+  }
+  collection?: {
+    wish: number
+    collect: number
+    doing: number
+    on_hold: number
+    dropped: number
+  }
   tags?: { name: string; count: number }[]
 }
 

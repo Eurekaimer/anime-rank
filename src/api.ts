@@ -20,9 +20,10 @@ const normalize = (subject: BangumiSubject, platform: Anime['platform']): Anime 
   name: subject.name,
   nameCn: subject.name_cn || subject.name,
   image: `https://api.bgm.tv/v0/subjects/${subject.id}/image?type=common`,
-  score: subject.score || 0,
-  rank: subject.rank || 0,
-  collectionTotal: subject.collection_total || 0,
+  score: subject.score ?? subject.rating?.score ?? 0,
+  rank: subject.rank ?? subject.rating?.rank ?? 0,
+  collectionTotal: subject.collection_total ?? Object.values(subject.collection || {}).reduce((sum, count) => sum + count, 0),
+  ratingCount: subject.rating?.total ?? 0,
   date: subject.date,
   platform,
 })
