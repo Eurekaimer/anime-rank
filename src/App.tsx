@@ -13,8 +13,8 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import { toPng } from 'html-to-image'
-import { ChevronLeft, ChevronRight, Download, Github, LoaderCircle, RefreshCw, Search } from 'lucide-react'
+import { toCanvas } from 'html-to-image'
+import { ChevronLeft, ChevronRight, Download, Github, LoaderCircle, RefreshCw, Search, X } from 'lucide-react'
 import { fetchSeasonAnime } from './api'
 import AnimeCard from './components/AnimeCard'
 import TierRow from './components/TierRow'
@@ -50,6 +50,7 @@ const makeTiers = (anime: Anime[]): Tier[] => TIER_META.map((tier) => ({
 const storageKey = (year: number, month: number) => `anime-rank:${year}-${month}`
 const PAGE_SIZE = 12
 type SortMode = 'heat' | 'score' | 'date' | 'name'
+type ExportFormat = 'png' | 'jpg' | 'webp'
 
 export default function App() {
   const initial = defaultSeason()
@@ -65,7 +66,10 @@ export default function App() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [message, setMessage] = useState('正在连接 Bangumi…')
   const [exporting, setExporting] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('png')
   const boardRef = useRef<HTMLDivElement>(null)
+  const exportCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 3 } }))
 
   const years = useMemo(() => {
@@ -81,9 +85,14 @@ export default function App() {
       const saved = !force ? localStorage.getItem(storageKey(year, month)) : null
       if (saved) {
         const savedTiers = JSON.parse(saved) as Tier[]
-        const known = new Set(savedTiers.flatMap((tier) => tier.items.map((item) => item.id)))
+        const availableIds = new Set(anime.map((item) => item.id))
+        const cleanedTiers = savedTiers.map((tier) => ({
+          ...tier,
+          items: tier.items.filter((item) => availableIds.has(item.id)),
+        }))
+        const known = new Set(cleanedTiers.flatMap((tier) => tier.items.map((item) => item.id)))
         const additions = anime.filter((item) => !known.has(item.id))
-        setTiers(savedTiers.map((tier) => tier.id === 'pool' ? { ...tier, items: [...tier.items, ...additions] } : tier))
+        setTiers(cleanedTiers.map((tier) => tier.id === 'pool' ? { ...tier, items: [...tier.items, ...additions] } : tier))
       } else {
         setTiers(makeTiers(anime))
       }
@@ -162,25 +171,43 @@ export default function App() {
     })
   }
 
-  const exportImage = async () => {
+  const previewExport = async () => {
     if (!boardRef.current) return
     setExporting(true)
     try {
-      const dataUrl = await toPng(boardRef.current, {
+      const canvas = await toCanvas(boardRef.current, {
         pixelRatio: 2,
         cacheBust: true,
-        backgroundColor: '#09090d',
-        filter: (node) => !(node instanceof HTMLElement && node.classList.contains('no-export')),
+        backgroundColor: '#ffffff',
+        filter: (node) => {
+          if (!(node instanceof HTMLElement)) return true
+          return !node.classList.contains('no-export') && !node.classList.contains('tier-row--pool')
+        },
       })
-      const link = document.createElement('a')
-      link.download = `anime-rank-${year}-${month}.png`
-      link.href = dataUrl
-      link.click()
+      exportCanvasRef.current = canvas
+      setExportFormat('png')
+      setPreviewUrl(canvas.toDataURL('image/png'))
     } catch {
       setMessage('图片导出失败：可能有封面跨域限制，请刷新后重试')
     } finally {
       setExporting(false)
     }
+  }
+
+  const selectExportFormat = (format: ExportFormat) => {
+    const canvas = exportCanvasRef.current
+    if (!canvas) return
+    const mime = format === 'jpg' ? 'image/jpeg' : `image/${format}`
+    setExportFormat(format)
+    setPreviewUrl(canvas.toDataURL(mime, .94))
+  }
+
+  const downloadExport = () => {
+    if (!previewUrl) return
+    const link = document.createElement('a')
+    link.download = `anime-rank-${year}-${month}.${exportFormat}`
+    link.href = previewUrl
+    link.click()
   }
 
   const seasonName = seasons.find((season) => season.month === month)?.label
@@ -222,8 +249,8 @@ export default function App() {
         <label className="search"><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索番剧…" /></label>
         <label className="sort-select">排序<select value={sortMode} onChange={(e) => setSortMode(e.target.value as SortMode)}><option value="heat">按热度</option><option value="score">按评分</option><option value="date">按开播日期</option><option value="name">按名称</option></select></label>
         <button className="ghost-button" onClick={() => void load(true)} disabled={status === 'loading'}><RefreshCw size={16} />重置</button>
-        <button className="export-button" onClick={() => void exportImage()} disabled={exporting || status !== 'ready'}>
-          {exporting ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}导出 PNG
+        <button className="export-button" onClick={() => void previewExport()} disabled={exporting || status !== 'ready'}>
+          {exporting ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}预览导出
         </button>
       </section>
 
@@ -270,6 +297,26 @@ export default function App() {
         </div>
         <DragOverlay>{active ? <AnimeCard anime={active} overlay /> : null}</DragOverlay>
       </DndContext>
+
+      {previewUrl && (
+        <div className="export-modal-backdrop" role="presentation" onMouseDown={() => setPreviewUrl(null)}>
+          <section className="export-modal" role="dialog" aria-modal="true" aria-label="导出图片预览" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <div><h2>导出预览</h2><p>待定区不会出现在最终图片中</p></div>
+              <button className="modal-close" onClick={() => setPreviewUrl(null)} aria-label="关闭"><X size={19} /></button>
+            </header>
+            <div className="preview-stage"><img src={previewUrl} alt="榜单导出预览" /></div>
+            <footer>
+              <div className="format-picker" aria-label="图片格式">
+                {(['png', 'jpg', 'webp'] as ExportFormat[]).map((format) => (
+                  <button key={format} className={exportFormat === format ? 'active' : ''} onClick={() => selectExportFormat(format)}>{format.toUpperCase()}</button>
+                ))}
+              </div>
+              <button className="download-confirm" onClick={downloadExport}><Download size={17} />保存 {exportFormat.toUpperCase()}</button>
+            </footer>
+          </section>
+        </div>
+      )}
 
       <footer className="page-footer">条目与封面数据来自 Bangumi · 排名保存在本机浏览器</footer>
     </main>

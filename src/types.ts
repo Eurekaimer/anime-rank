@@ -29,6 +29,7 @@ export type BangumiSubject = {
   score?: number
   rank?: number
   collection_total?: number
+  tags?: { name: string; count: number }[]
 }
 
 export type BangumiPage = {

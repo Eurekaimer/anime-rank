@@ -1,6 +1,15 @@
 import type { Anime, BangumiPage, BangumiSubject } from './types'
 
 const API = 'https://api.bgm.tv/v0/subjects'
+const NON_JAPANESE_TAGS = [
+  '国产', '国漫', '中国', '中国动画', '国创', '动态漫', '动态漫画', 'donghua',
+]
+
+const isJapaneseCandidate = (subject: BangumiSubject) =>
+  !(subject.tags || []).some((tag) => {
+    const name = tag.name.toLowerCase()
+    return NON_JAPANESE_TAGS.some((blocked) => name.includes(blocked))
+  })
 
 const normalize = (subject: BangumiSubject, platform: 'TV' | 'WEB'): Anime => ({
   id: subject.id,
@@ -30,7 +39,9 @@ async function fetchCategory(year: number, month: number, category: 1 | 5) {
   })
   if (!response.ok) throw new Error(`Bangumi API 返回 ${response.status}`)
   const page = (await response.json()) as BangumiPage
-  return page.data.map((item) => normalize(item, category === 1 ? 'TV' : 'WEB'))
+  return page.data
+    .filter(isJapaneseCandidate)
+    .map((item) => normalize(item, category === 1 ? 'TV' : 'WEB'))
 }
 
 export async function fetchSeasonAnime(year: number, month: number) {
