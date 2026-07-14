@@ -5,11 +5,19 @@ const afterLayout = () => new Promise<void>((resolve) =>
 )
 
 export async function renderBoardToCanvas(sourceBoard: HTMLDivElement) {
+  const sandbox = document.createElement('div')
   const exportBoard = sourceBoard.cloneNode(true) as HTMLDivElement
   exportBoard.classList.add('exporting-board')
-  Object.assign(exportBoard.style, {
+  Object.assign(sandbox.style, {
     position: 'fixed',
     left: '-100000px',
+    top: '0',
+    width: `${sourceBoard.getBoundingClientRect().width}px`,
+    pointerEvents: 'none',
+  })
+  Object.assign(exportBoard.style, {
+    position: 'relative',
+    left: '0',
     top: '0',
     width: `${sourceBoard.getBoundingClientRect().width}px`,
     maxWidth: 'none',
@@ -22,7 +30,8 @@ export async function renderBoardToCanvas(sourceBoard: HTMLDivElement) {
     if (clonedInputs[index]) clonedInputs[index].value = input.value
   })
 
-  document.body.appendChild(exportBoard)
+  sandbox.appendChild(exportBoard)
+  document.body.appendChild(sandbox)
   try {
     await afterLayout()
     return await toCanvas(exportBoard, {
@@ -34,6 +43,6 @@ export async function renderBoardToCanvas(sourceBoard: HTMLDivElement) {
       filter: (node) => !(node instanceof HTMLElement && node.classList.contains('no-export')),
     })
   } finally {
-    exportBoard.remove()
+    sandbox.remove()
   }
 }
