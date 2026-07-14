@@ -48,7 +48,7 @@ const makeTiers = (anime: Anime[]): Tier[] => TIER_META.map((tier) => ({
 }))
 
 const storageKey = (year: number, month: number) => `anime-rank:${year}-${month}`
-type SortMode = 'heat' | 'score' | 'date' | 'name'
+type SortMode = 'smart' | 'heat' | 'score' | 'date' | 'name'
 type ExportFormat = 'png' | 'jpg' | 'webp'
 
 export default function App() {
@@ -59,7 +59,7 @@ export default function App() {
   const [active, setActive] = useState<Anime | null>(null)
   const [targetTier, setTargetTier] = useState<TierId | null>(null)
   const [query, setQuery] = useState('')
-  const [sortMode, setSortMode] = useState<SortMode>('heat')
+  const [sortMode, setSortMode] = useState<SortMode>('smart')
   const [poolPage, setPoolPage] = useState(0)
   const [poolColumns, setPoolColumns] = useState(6)
   const [title, setTitle] = useState('本季度新番夯拉榜')
@@ -233,7 +233,9 @@ export default function App() {
       if (sortMode === 'score') return b.score - a.score || b.collectionTotal - a.collectionTotal
       if (sortMode === 'date') return (a.date || '').localeCompare(b.date || '')
       if (sortMode === 'name') return a.nameCn.localeCompare(b.nameCn, 'zh-CN')
-      return b.collectionTotal - a.collectionTotal || b.score - a.score
+      if (sortMode === 'heat') return b.collectionTotal - a.collectionTotal || b.score - a.score
+      const smartScore = (anime: Anime) => Math.log10(anime.collectionTotal + 1) * 2 + anime.score
+      return smartScore(b) - smartScore(a) || b.collectionTotal - a.collectionTotal
     })
   const pageCount = Math.max(1, Math.ceil(filteredPool.length / pageSize))
   const safePage = Math.min(poolPage, pageCount - 1)
@@ -261,7 +263,6 @@ export default function App() {
           <label>季度<select value={month} onChange={(e) => setMonth(Number(e.target.value))}>{seasons.map((item) => <option key={item.month} value={item.month}>{item.label}季 · {item.month}月</option>)}</select></label>
         </div>
         <label className="search"><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索番剧…" /></label>
-        <label className="sort-select">排序<select value={sortMode} onChange={(e) => setSortMode(e.target.value as SortMode)}><option value="heat">按热度</option><option value="score">按评分</option><option value="date">按开播日期</option><option value="name">按名称</option></select></label>
         <button className="ghost-button" onClick={() => void load(true)} disabled={status === 'loading'}><RefreshCw size={16} />重置</button>
         <button className="export-button" onClick={() => void previewExport()} disabled={exporting || status !== 'ready'}>
           {exporting ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}预览导出
@@ -298,10 +299,21 @@ export default function App() {
                 controls={
                   <div className="pool-toolbar no-export">
                     <span>显示 {filteredPool.length ? safePage * pageSize + 1 : 0}–{Math.min((safePage + 1) * pageSize, filteredPool.length)} / {filteredPool.length} · 每行 {poolColumns} 部</span>
-                    <div>
-                      <button onClick={() => setPoolPage((page) => Math.max(0, page - 1))} disabled={safePage === 0} aria-label="上一页"><ChevronLeft size={16} /></button>
-                      <b>{safePage + 1} / {pageCount}</b>
-                      <button onClick={() => setPoolPage((page) => Math.min(pageCount - 1, page + 1))} disabled={safePage >= pageCount - 1} aria-label="下一页"><ChevronRight size={16} /></button>
+                    <div className="pool-actions">
+                      <label className="pool-sort">待定区排序
+                        <select value={sortMode} onChange={(e) => setSortMode(e.target.value as SortMode)}>
+                          <option value="smart">综合推荐</option>
+                          <option value="heat">热度优先</option>
+                          <option value="score">评分优先</option>
+                          <option value="date">开播日期</option>
+                          <option value="name">名称</option>
+                        </select>
+                      </label>
+                      <div className="pool-pager">
+                        <button onClick={() => setPoolPage((page) => Math.max(0, page - 1))} disabled={safePage === 0} aria-label="上一页"><ChevronLeft size={16} /></button>
+                        <b>{safePage + 1} / {pageCount}</b>
+                        <button onClick={() => setPoolPage((page) => Math.min(pageCount - 1, page + 1))} disabled={safePage >= pageCount - 1} aria-label="下一页"><ChevronRight size={16} /></button>
+                      </div>
                     </div>
                   </div>
                 }
