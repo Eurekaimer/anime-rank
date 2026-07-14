@@ -17,6 +17,8 @@
 - 暖白简约界面与响应式布局
 - 中央弹窗预览，支持 2× 分辨率 PNG、JPG 与 WebP 导出
 - 导出图片只包含五个正式档位，不包含待定区
+- 导出前通过离屏副本重新排版并裁切，不保留待定区产生的空白
+- 支持填写并在本地保存署名 ID；导出图附带署名、项目仓库和个人网站
 - 按季度自动保存至浏览器 `localStorage`
 - 每张卡片可直接跳转至对应的 Bangumi 条目
 - 合并到 `main` 后通过 GitHub Actions 自动部署至 GitHub Pages
@@ -62,6 +64,21 @@ npm run preview
 - dnd-kit
 - html-to-image
 - CSS Grid / responsive layout / color-mix
+
+## 代码结构
+
+```text
+src/
+├── components/            # 卡片、档位、控制栏与导出弹窗
+├── hooks/                 # 响应式待定区列数
+├── utils/                 # 排序算法与离屏导出
+├── api.ts                 # Bangumi 数据获取和标准化
+├── constants.ts           # 档位、季度与存储配置
+├── types.ts               # 共享领域类型
+└── App.tsx                # 页面状态与模块编排
+```
+
+排序结果、档位统计和卡片索引均作为派生数据缓存。拖拽时通过 `Map` 和 `Set` 定位卡片与目标档位，避免反复扫描整个番剧列表；导出逻辑与页面渲染完全分离，便于继续增加模板或图片尺寸。
 
 ## 数据与版权
 

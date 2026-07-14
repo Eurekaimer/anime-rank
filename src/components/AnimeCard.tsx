@@ -1,4 +1,4 @@
-import { CSSProperties, MouseEvent, useRef, useState } from 'react'
+import { CSSProperties, memo, MouseEvent, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ExternalLink, GripVertical } from 'lucide-react'
@@ -7,7 +7,7 @@ import type { Anime } from '../types'
 
 type Props = { anime: Anime; overlay?: boolean }
 
-export default function AnimeCard({ anime, overlay = false }: Props) {
+function AnimeCard({ anime, overlay = false }: Props) {
   const cardRef = useRef<HTMLElement | null>(null)
   const [imageError, setImageError] = useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -86,3 +86,5 @@ export default function AnimeCard({ anime, overlay = false }: Props) {
     </article>
   )
 }
+
+export default memo(AnimeCard)

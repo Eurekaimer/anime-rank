@@ -62,7 +62,7 @@ main { min-height: 100vh; padding-bottom: 48px; }
   box-shadow: 0 8px 24px #453c3020;
 }
 .select-group { display: flex; gap: 8px; }
-.control-panel label:not(.search) { color: #77736d; font-size: 10px; letter-spacing: .06em; white-space: nowrap; }
+.control-panel label:not(.search):not(.creator-field) { color: #77736d; font-size: 10px; letter-spacing: .06em; white-space: nowrap; }
 select {
   display: block;
   min-width: 112px;
@@ -77,6 +77,8 @@ select {
 }
 .search { flex: 1; height: 43px; padding: 0 13px; display: flex; align-items: center; gap: 9px; color: #8b8780; background: #faf9f7; border: 1px solid #dedbd4; border-radius: 8px; }
 .search input { width: 100%; color: #2d2b28; background: transparent; border: 0; outline: 0; }
+.creator-field { width: 180px; height: 43px; padding: 0 12px; display: flex; align-items: center; gap: 7px; color: #8b8780; background: #faf9f7; border: 1px solid #dedbd4; border-radius: 8px; }
+.creator-field input { min-width: 0; width: 100%; color: #2d2b28; background: transparent; border: 0; outline: 0; font-size: 13px; }
 .ghost-button, .export-button { height: 43px; padding: 0 16px; display: flex; align-items: center; justify-content: center; gap: 7px; border-radius: 8px; font-size: 13px; font-weight: 650; white-space: nowrap; }
 .ghost-button { color: #55524d; background: #f5f3ee; border: 1px solid #dedbd4; }
 .export-button { color: #fff; background: #d77757; border: 1px solid #c9694b; }
@@ -192,7 +194,19 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .anime-card:hover .subject-link { opacity: 1; }
 .drag-hint { position: absolute; top: 60px; right: 4px; color: #fff; filter: drop-shadow(0 1px 2px #333); opacity: 0; transition: opacity .15s; }
 .anime-card:hover .drag-hint { opacity: .9; }
-.board-footer { padding-top: 15px; display: flex; justify-content: space-between; color: #99958e; border-top: 1px solid #e4e1db; font-size: 9px; font-weight: 700; letter-spacing: .1em; }
+.board-footer { padding-top: 15px; color: #77736d; border-top: 1px solid #e4e1db; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.screen-only { display: flex; justify-content: space-between; }
+.export-only { display: none; }
+.exporting-board { height: auto !important; min-height: 0 !important; margin: 0 !important; box-shadow: none; }
+.exporting-board .tier-row--pool { display: none !important; }
+.exporting-board .tier-list { padding-bottom: 18px; }
+.exporting-board .screen-only { display: none; }
+.exporting-board .export-only { display: flex; }
+.export-signature { align-items: end; justify-content: space-between; gap: 24px; }
+.export-signature > div { display: flex; flex-direction: column; gap: 5px; }
+.export-signature > div:last-child { align-items: flex-end; }
+.export-signature strong { color: #a84d36; font-size: 13px; letter-spacing: .06em; }
+.export-signature span { color: #77736d; font-size: 10px; letter-spacing: .04em; text-transform: none; }
 .page-footer { width: min(1540px, calc(100% - 24px)); margin: 22px auto 0; color: #817d76; text-align: center; font-size: 12px; }
 
 .export-modal-backdrop { position: fixed; z-index: 100; inset: 0; padding: 24px; display: grid; place-items: center; background: #302d298f; backdrop-filter: blur(5px); }
@@ -214,6 +228,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .hero { margin-top: 46px; }
   .control-panel { position: relative; top: auto; flex-wrap: wrap; }
   .search { order: 4; flex-basis: 100%; }
+  .creator-field { flex: 1; }
   .board { padding: 22px 14px; }
   .tier-row { grid-template-columns: 170px minmax(0, 1fr); }
   .tier-row--pool .tier-dropzone { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
@@ -227,6 +242,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   .control-panel { align-items: stretch; }
   .select-group { width: 100%; }
   .select-group label, .select-group select { width: 100%; }
+  .creator-field { width: 100%; flex-basis: 100%; }
   .ghost-button, .export-button { flex: 1; }
   .board-header input { width: 100%; font-size: 29px; }
   .board-stat { display: none; }

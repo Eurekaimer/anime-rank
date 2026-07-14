@@ -1,4 +1,4 @@
-import type { ReactNode, Ref } from 'react'
+import { memo, type ReactNode, type Ref } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import AnimeCard from './AnimeCard'
@@ -13,7 +13,7 @@ type Props = {
   dropzoneRef?: Ref<HTMLDivElement>
 }
 
-export default function TierRow({ tier, query, displayItems, controls, highlighted, dropzoneRef }: Props) {
+function TierRow({ tier, query, displayItems, controls, highlighted, dropzoneRef }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: tier.id })
   const visible = (displayItems || tier.items).filter((anime) =>
     `${anime.nameCn} ${anime.name}`.toLowerCase().includes(query.toLowerCase()),
@@ -45,3 +45,5 @@ export default function TierRow({ tier, query, displayItems, controls, highlight
     </section>
   )
 }
+
+export default memo(TierRow)

@@ -21,6 +21,14 @@ export type Tier = {
   items: Anime[]
 }
 
+export type SortMode = 'smart' | 'heat' | 'score' | 'date' | 'name'
+export type ExportFormat = 'png' | 'jpg' | 'webp'
+
+export type Season = {
+  month: number
+  label: string
+}
+
 export type BangumiSubject = {
   id: number
   name: string
