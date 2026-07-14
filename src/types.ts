@@ -7,7 +7,7 @@ export type Anime = {
   rank: number
   collectionTotal: number
   date?: string
-  platform: 'TV' | 'WEB'
+  platform: 'TV' | 'MOVIE' | 'WEB'
 }
 
 export type TierId = 'hot' | 'god' | 'elite' | 'npc' | 'trash' | 'pool'

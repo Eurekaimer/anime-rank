@@ -4,14 +4,18 @@ const API = 'https://api.bgm.tv/v0/subjects'
 const NON_JAPANESE_TAGS = [
   '国产', '国漫', '中国', '中国动画', '国创', '动态漫', '动态漫画', 'donghua',
 ]
+const JAPANESE_TITLE_ALLOWLIST = /辉夜|輝夜|かぐや|kaguya|サイバーパンク|cyberpunk\s*[:：-]?\s*edgerunners|赛博朋克.*边缘行者/i
+
+const isSpecialJapaneseTitle = (subject: BangumiSubject) =>
+  JAPANESE_TITLE_ALLOWLIST.test(`${subject.name} ${subject.name_cn}`)
 
 const isJapaneseCandidate = (subject: BangumiSubject) =>
-  !(subject.tags || []).some((tag) => {
+  isSpecialJapaneseTitle(subject) || !(subject.tags || []).some((tag) => {
     const name = tag.name.toLowerCase()
     return NON_JAPANESE_TAGS.some((blocked) => name.includes(blocked))
   })
 
-const normalize = (subject: BangumiSubject, platform: 'TV' | 'WEB'): Anime => ({
+const normalize = (subject: BangumiSubject, platform: Anime['platform']): Anime => ({
   id: subject.id,
   name: subject.name,
   nameCn: subject.name_cn || subject.name,
@@ -23,7 +27,7 @@ const normalize = (subject: BangumiSubject, platform: 'TV' | 'WEB'): Anime => ({
   platform,
 })
 
-async function fetchCategory(year: number, month: number, category: 1 | 5) {
+async function fetchCategory(year: number, month: number, category: 1 | 3 | 5) {
   const params = new URLSearchParams({
     type: '2',
     cat: String(category),
@@ -41,12 +45,14 @@ async function fetchCategory(year: number, month: number, category: 1 | 5) {
   const page = (await response.json()) as BangumiPage
   return page.data
     .filter(isJapaneseCandidate)
-    .map((item) => normalize(item, category === 1 ? 'TV' : 'WEB'))
+    .map((item) => normalize(item, category === 1 ? 'TV' : category === 3 ? 'MOVIE' : 'WEB'))
 }
 
 export async function fetchSeasonAnime(year: number, month: number) {
   const results = await Promise.allSettled([
     fetchCategory(year, month, 1),
+    fetchCategory(year, month, 3),
+    // Keep Japanese WEB productions; Chinese animation is filtered by Bangumi tags.
     fetchCategory(year, month, 5),
   ])
   const available = results.flatMap((result) =>

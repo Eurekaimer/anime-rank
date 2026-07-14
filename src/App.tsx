@@ -48,7 +48,6 @@ const makeTiers = (anime: Anime[]): Tier[] => TIER_META.map((tier) => ({
 }))
 
 const storageKey = (year: number, month: number) => `anime-rank:${year}-${month}`
-const PAGE_SIZE = 12
 type SortMode = 'heat' | 'score' | 'date' | 'name'
 type ExportFormat = 'png' | 'jpg' | 'webp'
 
@@ -62,6 +61,7 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [sortMode, setSortMode] = useState<SortMode>('heat')
   const [poolPage, setPoolPage] = useState(0)
+  const [poolColumns, setPoolColumns] = useState(6)
   const [title, setTitle] = useState('本季度新番夯拉榜')
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [message, setMessage] = useState('正在连接 Bangumi…')
@@ -69,6 +69,7 @@ export default function App() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [exportFormat, setExportFormat] = useState<ExportFormat>('png')
   const boardRef = useRef<HTMLDivElement>(null)
+  const poolDropzoneRef = useRef<HTMLDivElement>(null)
   const exportCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 3 } }))
 
@@ -105,7 +106,19 @@ export default function App() {
   }
 
   useEffect(() => { void load() }, [year, month])
-  useEffect(() => { setPoolPage(0) }, [year, month, query, sortMode])
+  useEffect(() => { setPoolPage(0) }, [year, month, query, sortMode, poolColumns])
+  useEffect(() => {
+    const node = poolDropzoneRef.current
+    if (!node || typeof ResizeObserver === 'undefined') return
+    const updateColumns = (width: number) => {
+      // A portrait card is 100px wide; reserve roughly 9px between cards.
+      setPoolColumns(Math.max(2, Math.floor((width - 20) / 109)))
+    }
+    updateColumns(node.getBoundingClientRect().width)
+    const observer = new ResizeObserver(([entry]) => updateColumns(entry.contentRect.width))
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [status])
   useEffect(() => {
     if (status === 'ready') localStorage.setItem(storageKey(year, month), JSON.stringify(tiers))
   }, [tiers, status, year, month])
@@ -213,6 +226,7 @@ export default function App() {
   const seasonName = seasons.find((season) => season.month === month)?.label
   const rankedCount = tiers.filter((tier) => tier.id !== 'pool').reduce((sum, tier) => sum + tier.items.length, 0)
   const pool = tiers.find((tier) => tier.id === 'pool')?.items || []
+  const pageSize = poolColumns * 2
   const filteredPool = pool
     .filter((anime) => `${anime.nameCn} ${anime.name}`.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => {
@@ -221,9 +235,9 @@ export default function App() {
       if (sortMode === 'name') return a.nameCn.localeCompare(b.nameCn, 'zh-CN')
       return b.collectionTotal - a.collectionTotal || b.score - a.score
     })
-  const pageCount = Math.max(1, Math.ceil(filteredPool.length / PAGE_SIZE))
+  const pageCount = Math.max(1, Math.ceil(filteredPool.length / pageSize))
   const safePage = Math.min(poolPage, pageCount - 1)
-  const poolPageItems = filteredPool.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
+  const poolPageItems = filteredPool.slice(safePage * pageSize, (safePage + 1) * pageSize)
 
   return (
     <main>
@@ -280,9 +294,10 @@ export default function App() {
                 query=""
                 displayItems={poolPageItems}
                 highlighted={targetTier === tier.id}
+                dropzoneRef={poolDropzoneRef}
                 controls={
                   <div className="pool-toolbar no-export">
-                    <span>显示 {filteredPool.length ? safePage * PAGE_SIZE + 1 : 0}–{Math.min((safePage + 1) * PAGE_SIZE, filteredPool.length)} / {filteredPool.length}</span>
+                    <span>显示 {filteredPool.length ? safePage * pageSize + 1 : 0}–{Math.min((safePage + 1) * pageSize, filteredPool.length)} / {filteredPool.length} · 每行 {poolColumns} 部</span>
                     <div>
                       <button onClick={() => setPoolPage((page) => Math.max(0, page - 1))} disabled={safePage === 0} aria-label="上一页"><ChevronLeft size={16} /></button>
                       <b>{safePage + 1} / {pageCount}</b>
