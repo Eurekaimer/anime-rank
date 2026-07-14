@@ -1,14 +1,15 @@
-import { CSSProperties, MouseEvent, useRef } from 'react'
+import { CSSProperties, MouseEvent, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ExternalLink, GripVertical } from 'lucide-react'
-import { mikanSearchUrl } from '../api'
+import { bangumiSubjectUrl } from '../api'
 import type { Anime } from '../types'
 
 type Props = { anime: Anime; overlay?: boolean }
 
 export default function AnimeCard({ anime, overlay = false }: Props) {
   const cardRef = useRef<HTMLElement | null>(null)
+  const [imageError, setImageError] = useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: String(anime.id),
     data: { anime },
@@ -56,8 +57,8 @@ export default function AnimeCard({ anime, overlay = false }: Props) {
       {...listeners}
     >
       <div className="card-shine" />
-      {anime.image ? (
-        <img src={anime.image} alt="" crossOrigin="anonymous" draggable={false} />
+      {anime.image && !imageError ? (
+        <img src={anime.image} alt={anime.nameCn} draggable={false} onError={() => setImageError(true)} />
       ) : (
         <div className="image-fallback">ANIME</div>
       )}
@@ -71,15 +72,15 @@ export default function AnimeCard({ anime, overlay = false }: Props) {
         {anime.nameCn !== anime.name && <p>{anime.name}</p>}
       </div>
       <a
-        className="mikan-link no-export"
-        href={mikanSearchUrl(anime.nameCn)}
+        className="subject-link no-export"
+        href={bangumiSubjectUrl(anime.id)}
         target="_blank"
         rel="noreferrer"
-        title="在 Mikan 搜索"
+        title="打开 Bangumi 条目"
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
       >
-        <ExternalLink size={13} /> Mikan
+        <ExternalLink size={13} /> Bangumi
       </a>
       <GripVertical className="drag-hint no-export" size={17} />
     </article>

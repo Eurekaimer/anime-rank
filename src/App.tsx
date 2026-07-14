@@ -1,29 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   closestCenter,
+  CollisionDetection,
   DndContext,
   DragEndEvent,
+  DragOverEvent,
   DragOverlay,
   DragStartEvent,
+  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import { toPng } from 'html-to-image'
-import { Download, Github, LoaderCircle, RefreshCw, Search, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Download, Github, LoaderCircle, RefreshCw, Search } from 'lucide-react'
 import { fetchSeasonAnime } from './api'
 import AnimeCard from './components/AnimeCard'
 import TierRow from './components/TierRow'
 import type { Anime, Tier, TierId } from './types'
 
 const TIER_META: Omit<Tier, 'items'>[] = [
-  { id: 'hot', label: '夯', caption: '断层领先，季度唯一真神', color: '#ff2d55' },
-  { id: 'god', label: '顶级', caption: '本季度的绝对答案', color: '#ff785a' },
-  { id: 'elite', label: '人上人', caption: '值得每周追更', color: '#f7b955' },
-  { id: 'npc', label: 'NPC', caption: '能看，但存在感有限', color: '#7d86ff' },
-  { id: 'trash', label: '拉完了', caption: '建议及时止损', color: '#5d6472' },
-  { id: 'pool', label: '待定区', caption: '从这里开始你的锐评', color: '#34d399' },
+  { id: 'hot', label: '夯', caption: '断层领先，季度唯一真神', color: '#a84d36' },
+  { id: 'god', label: '顶级', caption: '本季度的绝对答案', color: '#bd684e' },
+  { id: 'elite', label: '人上人', caption: '值得每周追更', color: '#9a7658' },
+  { id: 'npc', label: 'NPC', caption: '能看，但存在感有限', color: '#77736b' },
+  { id: 'trash', label: '拉完了', caption: '建议及时止损', color: '#4f4d48' },
+  { id: 'pool', label: '待定区', caption: '每页两行，拖动开始评价', color: '#697066' },
 ]
 
 const seasons = [
@@ -45,6 +48,8 @@ const makeTiers = (anime: Anime[]): Tier[] => TIER_META.map((tier) => ({
 }))
 
 const storageKey = (year: number, month: number) => `anime-rank:${year}-${month}`
+const PAGE_SIZE = 12
+type SortMode = 'heat' | 'score' | 'date' | 'name'
 
 export default function App() {
   const initial = defaultSeason()
@@ -52,13 +57,16 @@ export default function App() {
   const [month, setMonth] = useState(initial.month)
   const [tiers, setTiers] = useState<Tier[]>(makeTiers([]))
   const [active, setActive] = useState<Anime | null>(null)
+  const [targetTier, setTargetTier] = useState<TierId | null>(null)
   const [query, setQuery] = useState('')
+  const [sortMode, setSortMode] = useState<SortMode>('heat')
+  const [poolPage, setPoolPage] = useState(0)
   const [title, setTitle] = useState('本季度新番夯拉榜')
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [message, setMessage] = useState('正在连接 Bangumi…')
   const [exporting, setExporting] = useState(false)
   const boardRef = useRef<HTMLDivElement>(null)
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 3 } }))
 
   const years = useMemo(() => {
     const current = new Date().getFullYear()
@@ -88,6 +96,7 @@ export default function App() {
   }
 
   useEffect(() => { void load() }, [year, month])
+  useEffect(() => { setPoolPage(0) }, [year, month, query, sortMode])
   useEffect(() => {
     if (status === 'ready') localStorage.setItem(storageKey(year, month), JSON.stringify(tiers))
   }, [tiers, status, year, month])
@@ -98,12 +107,39 @@ export default function App() {
     return tiers.find((tier) => tier.items.some((item) => String(item.id) === id))?.id
   }
 
+  const collisionStrategy: CollisionDetection = useCallback((args) => {
+    const tierIds = new Set(TIER_META.map((tier) => tier.id))
+    const tierContainers = args.droppableContainers.filter((container) => tierIds.has(String(container.id) as TierId))
+
+    // The entire row is a target. If the pointer is between rows, snap to the nearest row.
+    const directTier = pointerWithin({ ...args, droppableContainers: tierContainers })[0]
+    const nearestTier = directTier || closestCenter({ ...args, droppableContainers: tierContainers })[0]
+    if (!nearestTier) return []
+
+    const tierId = String(nearestTier.id) as TierId
+    const itemIds = new Set(
+      (tiers.find((tier) => tier.id === tierId)?.items || []).map((item) => String(item.id)),
+    )
+    const cardsInTier = args.droppableContainers.filter((container) => itemIds.has(String(container.id)))
+    const directCard = pointerWithin({ ...args, droppableContainers: cardsInTier })
+
+    // Preserve precise within-tier ordering when hovering a card; otherwise accept the row.
+    return directCard.length
+      ? closestCenter({ ...args, droppableContainers: cardsInTier })
+      : [nearestTier]
+  }, [tiers])
+
   const onDragStart = ({ active: dragItem }: DragStartEvent) => {
     setActive(tiers.flatMap((tier) => tier.items).find((item) => String(item.id) === dragItem.id) || null)
   }
 
+  const onDragOver = ({ over }: DragOverEvent) => {
+    setTargetTier(over ? findTier(String(over.id)) || null : null)
+  }
+
   const onDragEnd = ({ active: from, over }: DragEndEvent) => {
     setActive(null)
+    setTargetTier(null)
     if (!over) return
     const fromTier = findTier(String(from.id))
     const toTier = findTier(String(over.id))
@@ -149,6 +185,18 @@ export default function App() {
 
   const seasonName = seasons.find((season) => season.month === month)?.label
   const rankedCount = tiers.filter((tier) => tier.id !== 'pool').reduce((sum, tier) => sum + tier.items.length, 0)
+  const pool = tiers.find((tier) => tier.id === 'pool')?.items || []
+  const filteredPool = pool
+    .filter((anime) => `${anime.nameCn} ${anime.name}`.toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => {
+      if (sortMode === 'score') return b.score - a.score || b.collectionTotal - a.collectionTotal
+      if (sortMode === 'date') return (a.date || '').localeCompare(b.date || '')
+      if (sortMode === 'name') return a.nameCn.localeCompare(b.nameCn, 'zh-CN')
+      return b.collectionTotal - a.collectionTotal || b.score - a.score
+    })
+  const pageCount = Math.max(1, Math.ceil(filteredPool.length / PAGE_SIZE))
+  const safePage = Math.min(poolPage, pageCount - 1)
+  const poolPageItems = filteredPool.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
 
   return (
     <main>
@@ -161,9 +209,9 @@ export default function App() {
       </nav>
 
       <section className="hero">
-        <div className="eyebrow"><Sparkles size={14} /> SEASONAL ANIME TIER LIST</div>
-        <h1>从<span>夯</span>到<span>拉</span>，<br />排出你的季度答案。</h1>
-        <p>拖拽番剧卡片完成锐评，一键生成适合博客与社交媒体的高清长图。</p>
+        <div className="eyebrow">SEASONAL ANIME TIER LIST</div>
+        <h1>从夯到拉，排出你的季度答案。</h1>
+        <p>选择季度，把每一部新番拖到它应在的位置。</p>
       </section>
 
       <section className="control-panel no-export">
@@ -172,6 +220,7 @@ export default function App() {
           <label>季度<select value={month} onChange={(e) => setMonth(Number(e.target.value))}>{seasons.map((item) => <option key={item.month} value={item.month}>{item.label}季 · {item.month}月</option>)}</select></label>
         </div>
         <label className="search"><Search size={17} /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索番剧…" /></label>
+        <label className="sort-select">排序<select value={sortMode} onChange={(e) => setSortMode(e.target.value as SortMode)}><option value="heat">按热度</option><option value="score">按评分</option><option value="date">按开播日期</option><option value="name">按名称</option></select></label>
         <button className="ghost-button" onClick={() => void load(true)} disabled={status === 'loading'}><RefreshCw size={16} />重置</button>
         <button className="export-button" onClick={() => void exportImage()} disabled={exporting || status !== 'ready'}>
           {exporting ? <LoaderCircle className="spin" size={17} /> : <Download size={17} />}导出 PNG
@@ -180,7 +229,14 @@ export default function App() {
 
       <div className={`status status--${status}`}>{status === 'loading' && <LoaderCircle className="spin" size={15} />}{message}</div>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={collisionStrategy}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragCancel={() => { setActive(null); setTargetTier(null) }}
+        onDragEnd={onDragEnd}
+      >
         <div className="board" ref={boardRef}>
           <header className="board-header">
             <div>
@@ -190,14 +246,32 @@ export default function App() {
             <div className="board-stat"><strong>{rankedCount}</strong><span>RANKED</span></div>
           </header>
           <div className="tier-list">
-            {tiers.map((tier) => <TierRow key={tier.id} tier={tier} query={query} />)}
+            {tiers.map((tier) => tier.id === 'pool' ? (
+              <TierRow
+                key={tier.id}
+                tier={tier}
+                query=""
+                displayItems={poolPageItems}
+                highlighted={targetTier === tier.id}
+                controls={
+                  <div className="pool-toolbar no-export">
+                    <span>显示 {filteredPool.length ? safePage * PAGE_SIZE + 1 : 0}–{Math.min((safePage + 1) * PAGE_SIZE, filteredPool.length)} / {filteredPool.length}</span>
+                    <div>
+                      <button onClick={() => setPoolPage((page) => Math.max(0, page - 1))} disabled={safePage === 0} aria-label="上一页"><ChevronLeft size={16} /></button>
+                      <b>{safePage + 1} / {pageCount}</b>
+                      <button onClick={() => setPoolPage((page) => Math.min(pageCount - 1, page + 1))} disabled={safePage >= pageCount - 1} aria-label="下一页"><ChevronRight size={16} /></button>
+                    </div>
+                  </div>
+                }
+              />
+            ) : <TierRow key={tier.id} tier={tier} query={query} highlighted={targetTier === tier.id} />)}
           </div>
           <footer className="board-footer"><span>ANIME RANK / EUREKAIMER</span><span>DATA · BANGUMI</span></footer>
         </div>
         <DragOverlay>{active ? <AnimeCard anime={active} overlay /> : null}</DragOverlay>
       </DndContext>
 
-      <footer className="page-footer">数据来自 Bangumi · Mikan 仅作为资源搜索入口 · 排名保存在本机浏览器</footer>
+      <footer className="page-footer">条目与封面数据来自 Bangumi · 排名保存在本机浏览器</footer>
     </main>
   )
 }

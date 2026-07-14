@@ -6,7 +6,7 @@ const normalize = (subject: BangumiSubject, platform: 'TV' | 'WEB'): Anime => ({
   id: subject.id,
   name: subject.name,
   nameCn: subject.name_cn || subject.name,
-  image: subject.images?.large || subject.images?.common || subject.images?.grid || '',
+  image: `https://api.bgm.tv/v0/subjects/${subject.id}/image?type=common`,
   score: subject.score || 0,
   rank: subject.rank || 0,
   collectionTotal: subject.collection_total || 0,
@@ -50,5 +50,4 @@ export async function fetchSeasonAnime(year: number, month: number) {
   )
 }
 
-export const mikanSearchUrl = (title: string) =>
-  `https://mikanani.me/Home/Search?searchstr=${encodeURIComponent(title)}`
+export const bangumiSubjectUrl = (id: number) => `https://bgm.tv/subject/${id}`

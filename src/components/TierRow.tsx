@@ -1,17 +1,27 @@
+import type { ReactNode } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import AnimeCard from './AnimeCard'
 import type { Tier } from '../types'
 
-export default function TierRow({ tier, query }: { tier: Tier; query: string }) {
+type Props = {
+  tier: Tier
+  query: string
+  displayItems?: Tier['items']
+  controls?: ReactNode
+  highlighted?: boolean
+}
+
+export default function TierRow({ tier, query, displayItems, controls, highlighted }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: tier.id })
-  const visible = tier.items.filter((anime) =>
+  const visible = (displayItems || tier.items).filter((anime) =>
     `${anime.nameCn} ${anime.name}`.toLowerCase().includes(query.toLowerCase()),
   )
 
   return (
     <section
-      className={`tier-row${isOver ? ' tier-row--over' : ''}`}
+      ref={setNodeRef}
+      className={`tier-row${tier.id === 'pool' ? ' tier-row--pool' : ''}${isOver || highlighted ? ' tier-row--over' : ''}`}
       style={{ '--tier': tier.color } as React.CSSProperties}
     >
       <header className="tier-label">
@@ -22,11 +32,14 @@ export default function TierRow({ tier, query }: { tier: Tier; query: string }) 
         </div>
         <strong>{tier.items.length}</strong>
       </header>
-      <div ref={setNodeRef} className="tier-dropzone">
-        <SortableContext items={tier.items.map((item) => String(item.id))} strategy={rectSortingStrategy}>
-          {visible.map((anime) => <AnimeCard key={anime.id} anime={anime} />)}
-        </SortableContext>
-        {!visible.length && <div className="empty-slot">拖到这里</div>}
+      <div className="tier-content">
+        {controls}
+        <div className="tier-dropzone">
+          <SortableContext items={visible.map((item) => String(item.id))} strategy={rectSortingStrategy}>
+            {visible.map((anime) => <AnimeCard key={anime.id} anime={anime} />)}
+          </SortableContext>
+          {!visible.length && <div className="empty-slot">拖到这里</div>}
+        </div>
       </div>
     </section>
   )
